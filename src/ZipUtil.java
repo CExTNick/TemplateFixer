@@ -123,6 +123,7 @@ public class ZipUtil {
      * @param zipDirName
      */
     public static void zipDirectory(File dir, String zipDirName) {
+    	filesListInDir = new ArrayList<String>();
         try {
             populateFilesList(dir);
             //now zip files one by one
