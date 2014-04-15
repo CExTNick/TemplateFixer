@@ -8,18 +8,18 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Set;
+import java.util.Vector;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 import javax.swing.DefaultCellEditor;
 import javax.swing.GroupLayout;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -42,6 +42,8 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import lotus.domino.ws.utils.FileUtils;
+
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -49,9 +51,9 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
 
-public class EditorFrame extends JFrame implements MouseListener, DocumentListener, ActionListener{
+public class EditorFrame extends JFrame implements MouseListener, ActionListener{
 
-	final String[] columnNames = {"New", "Old"};
+	final String[] columnNames = {"Node Number", "Text"};
 	JPanel panel;
 	JTextArea filePreviewArea;
 	JTable mappingTable;
@@ -60,11 +62,14 @@ public class EditorFrame extends JFrame implements MouseListener, DocumentListen
 	JTextField templateFilePath;
 	JButton saveButton;
 	JTextField selectionField;
+	JComboBox fileSelector;
+	HashMap<String, Element> documents;
 	
 	public EditorFrame()
 	{
 		super("Template Editor");
 		this.setDefaultCloseOperation(EXIT_ON_CLOSE);
+		
 		
 		panel = new JPanel();
 		GroupLayout layout = new GroupLayout(panel);
@@ -73,20 +78,21 @@ public class EditorFrame extends JFrame implements MouseListener, DocumentListen
 		panel.setLayout(layout);
 				
 		//file path label
-		JLabel filePathLabel = new JLabel("Template file: ");
+		JLabel filePathLabel = new JLabel("Template files: ");
 		
 		//file path field
 		templateFilePath = new JTextField();
 		templateFilePath.addMouseListener(this);
-		templateFilePath.getDocument().addDocumentListener(this);
 	
 		//save button
 		saveButton = new JButton("Save");
 		saveButton.addActionListener(this);
 		
+		fileSelector = new JComboBox();
+		fileSelector.addActionListener(this);
 		
 		tableModel = new DefaultTableModel(columnNames, 0);
-
+		
 		
 		//mappings table
 		JTable mappingTable = new JTable( tableModel);
@@ -108,12 +114,12 @@ public class EditorFrame extends JFrame implements MouseListener, DocumentListen
 				   	  .addGroup(layout.createParallelGroup(GroupLayout.Alignment.LEADING)
 				   		   .addGroup(layout.createSequentialGroup()
 					           .addComponent(filePathLabel)
-					           .addComponent(templateFilePath))
-				           .addComponent(scrollPane)
-				           .addComponent(selectionField))
+					           .addComponent(templateFilePath)
+					           .addComponent(saveButton))
+				           .addComponent(fileSelector)
+				           .addComponent(scrollPane))
 				      .addGroup(layout.createParallelGroup(GroupLayout.Alignment.TRAILING)
-				           .addComponent(saveButton)
-				           .addComponent(filePreviewScrollPane)))
+				           ))
 				);
 				layout.setVerticalGroup(
 				   layout.createSequentialGroup()
@@ -121,19 +127,18 @@ public class EditorFrame extends JFrame implements MouseListener, DocumentListen
 				           .addComponent(filePathLabel)
 				           .addComponent(templateFilePath)
 				           .addComponent(saveButton))
+				      .addComponent(fileSelector)
 				      .addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
-				           .addComponent(scrollPane)
-				           .addComponent(filePreviewScrollPane))
-				      .addComponent(selectionField)
+				           .addComponent(scrollPane))
 				);
 		add(panel);
 		this.pack();
-		this.setSize(1100, this.getHeight());
 		this.setVisible(true);
 		
 	}
-	public void importTemplateFile(String filePath) throws IOException, SAXException, ParserConfigurationException, TransformerException
+	public Element importTemplateFile(String filePath) throws IOException, SAXException, ParserConfigurationException, TransformerException
 	{
+		Element document = null;
 		InputStream is = null;
 		if(filePath.endsWith(".xml"))
 		{
@@ -149,11 +154,12 @@ public class EditorFrame extends JFrame implements MouseListener, DocumentListen
 		if(is != null)
 		{
 			System.out.println("reading file");
-			importTemplateFile(is);
+			document = importTemplateFile(is);
 		}
+		return document;
 	}
 
-	public void importTemplateFile(InputStream inputStream)
+	public Element importTemplateFile(InputStream inputStream)
 			throws SAXException, IOException, ParserConfigurationException,
 			TransformerException {
 
@@ -168,26 +174,11 @@ public class EditorFrame extends JFrame implements MouseListener, DocumentListen
 		Element records = builder.parse(input).getDocumentElement();
 		TemplateFixer templateFixer = new TemplateFixer();
 		templateFixer.fix(records);
-		
+
 		reader.close();
 		in.close();
-		// write the content into xml file
-		TransformerFactory transformerFactory = TransformerFactory
-				.newInstance();
-		Transformer transformer = transformerFactory.newTransformer();
-		DOMSource source = new DOMSource(records);
 		
-		StreamResult result = new StreamResult(new File(
-				"C:\\Users\\Nick\\Desktop\\document.xml"));
-		transformer.transform(source, result);
-		
-		NodeList nList = records.getElementsByTagName("w:t");
-
-		for (int i = 0; i < nList.getLength(); i++) {
-			Node node = nList.item(i);
-			tableModel.addRow(new String[] { "" + i, node.getTextContent() });
-		}
-
+		return records;
 	}
 
 	@Override
@@ -195,41 +186,168 @@ public class EditorFrame extends JFrame implements MouseListener, DocumentListen
 		if(evt.getSource() ==templateFilePath )
 		{
 			JFileChooser chooser = new JFileChooser();
+			chooser.setMultiSelectionEnabled(true);
 			chooser.setFileFilter(new FileNameExtensionFilter(
 			        "Word Doc" , "docx"));
 		    int returnVal = chooser.showOpenDialog(this);
 		    if(returnVal == JFileChooser.APPROVE_OPTION) {
-		    	templateFilePath.setText(chooser.getSelectedFile().getAbsolutePath());
+		    	
+		    	String files = "";
+		    	File selectedFiles[] = chooser.getSelectedFiles();
+		    	
+		    	for(int i=0;i<selectedFiles.length;i++)
+		    	{
+		    		files += selectedFiles[i].getAbsolutePath();
+		    		if(i != selectedFiles.length -1)
+		    			files+=',';
+		    	}
+		    	templateFilePath.setText(files);
 		    }
 		}
 		
 	}
 
 	public void insertUpdate(DocumentEvent evt) {
-		try {
-			importTemplateFile(templateFilePath.getText());
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (SAXException e) {
-			e.printStackTrace();
-		} catch (ParserConfigurationException e) {
-			e.printStackTrace();
-		} catch (TransformerException e) {
-			e.printStackTrace();
-		}
+	
 	}
 
 	public void actionPerformed(ActionEvent evt) {
-		ZipUtil.saveZip();
+		
+		if(evt.getSource() == saveButton)
+		{
+			fixDocuments();
+			try {
+				exportDocuments();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		else if(evt.getSource() == fileSelector)
+		{
+			setSelectedDocument((String) fileSelector.getSelectedItem());
+		}
+	}
+	public void fixDocuments()
+	{
+		clearFileSelector();
+		clearTable();
+		
+		documents = new HashMap<String, Element>();
+		
+		String fileNames[] = templateFilePath.getText().split(",");
+		for(int i=0;i<fileNames.length;i++)
+		{
+			String fileName = fileNames[i].trim();
+			if(fileName.length()>0)
+			{
+				Element document = null;
+				try {
+					document = importTemplateFile(fileName);
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (SAXException e) {
+					e.printStackTrace();
+				} catch (ParserConfigurationException e) {
+					e.printStackTrace();
+				} catch (TransformerException e) {
+					e.printStackTrace();
+				}
+				if(document!= null)
+				{
+					documents.put(fileName, document);
+					fileSelector.addItem(fileName);
+				}
+			}
+		}
+	}
+	public void exportDocuments() throws Exception
+	{
+		Set<String> keySet=  documents.keySet();
+		String[] keys = keySet.toArray(new String[keySet.size()]);
+		
+		for(int i=0;i<keys.length;i++)
+		{
+			String newPath = ZipUtil.extractFolder(keys[i]);
+			
+			// write the content into xml file
+			DOMSource source = new DOMSource(documents.get(keys[i]));
+			
+			
+			File documentXMLFile = new File(newPath + "\\word\\document.xml");
+			
+			TransformerFactory transformerFactory = TransformerFactory
+					.newInstance();
+			Transformer transformer = transformerFactory.newTransformer();
+			StreamResult result = new StreamResult(documentXMLFile);
+			transformer.transform(source, result);
+
+			File newFile = new File(newPath);
+			System.out.println("PAth" + newPath);
+			ZipUtil.zipDirectory(newFile, newPath+ " Fixed.docx");
+			//delete the file we just created
+			removeDir(newFile);
+		}
 		
 	}
-	
+	public void clearFileSelector()
+	{
+		fileSelector.removeAllItems();
+	}
+	public void clearTable()
+	{
+		for(int i=tableModel.getRowCount()-1;i>=0;i--)
+		{
+			tableModel.removeRow(i);
+		}
+	}
+	public void setSelectedDocument(String selectedDocument)
+	{
+		clearTable();
+		if(documents.containsKey(selectedDocument))
+		{
+			Element document = documents.get(selectedDocument);
+			
+			NodeList nList = document.getElementsByTagName("w:t");
+
+			for (int i = 0; i < nList.getLength(); i++) {
+				Node node = nList.item(i);
+				tableModel.addRow(new String[] { "" + i, node.getTextContent() });
+			}
+		}
+	}
 	public void mouseEntered(MouseEvent arg0) {}
 	public void mouseExited(MouseEvent arg0) {}
 	public void mousePressed(MouseEvent arg0) {}
 	public void mouseReleased(MouseEvent arg0) {}
 	
-	public void removeUpdate(DocumentEvent e) {}
-	public void changedUpdate(DocumentEvent evt) {}
+	/**
+	 * 
+	 * @param fIn
+	 */
+	public void removeDir(File fIn) {
+		int i;
+		File f;
+		String[] as;
+
+		if (fIn.isDirectory()) 
+		{
+			as = fIn.list(); 
+
+			for (i = 0; i < as.length; i++) {
+				f = new File(fIn, as[i]); 
+				removeDir(f); 
+			}
+
+			System.out.println("Remove " + fIn + " directory");
+			fIn.delete();
+			return;
+		}
+
+		System.out.println("Remove " + fIn + " file");
+		fIn.delete();
+		return;
+	}
+
+
 	
 }

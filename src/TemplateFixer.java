@@ -10,7 +10,7 @@ public class TemplateFixer
 	Element records;
 	NodeList nodeList;
 	int nodeIndex = 0;
-	int textIndex = 0;
+	int textIndex = -1;
 	
 	/**
 	 * Parses all tags in the document to find variables, and merges their nodes together so that they can be found via computation
@@ -54,11 +54,11 @@ public class TemplateFixer
 				variable.nodeStartIndex = nodeIndex;
 				variable.textStartIndex = textIndex;
 				//look for (
-				getNextOccurrence('(');
+				getNextOccurrence('{');
 				if(isInRange() && comesDirectlyAfter(nodeIndex, textIndex, variable.nodeStartIndex, variable.textStartIndex))
 				{
 					//look for )
-					getNextOccurrence(')');
+					getNextOccurrence('}');
 					
 					if(isInRange())
 					{
