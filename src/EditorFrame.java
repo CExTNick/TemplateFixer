@@ -8,12 +8,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.Vector;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 import javax.swing.DefaultCellEditor;
@@ -29,20 +25,17 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import lotus.domino.ws.utils.FileUtils;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -55,13 +48,11 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 
 	final String[] columnNames = {"Node Number", "Text"};
 	JPanel panel;
-	JTextArea filePreviewArea;
 	JTable mappingTable;
 	String fileText;
 	DefaultTableModel tableModel;
 	JTextField templateFilePath;
 	JButton saveButton;
-	JTextField selectionField;
 	JComboBox fileSelector;
 	HashMap<String, Element> documents;
 	
@@ -100,14 +91,7 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 		mappingTable.setRowHeight(25);
 		JScrollPane scrollPane = new JScrollPane(mappingTable);
 		mappingTable.setFillsViewportHeight(true);
-		
-		//preview text area
-		filePreviewArea = new JTextArea();
-		filePreviewArea.setLineWrap(true);
-		filePreviewArea.setWrapStyleWord(true);
-		JScrollPane filePreviewScrollPane = new JScrollPane(filePreviewArea);
-		
-		JTextField selectionField = new JTextField();
+				
 		layout.setHorizontalGroup(
 				   layout.createSequentialGroup()
 				   .addGroup(layout.createSequentialGroup()
@@ -260,6 +244,10 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 			}
 		}
 	}
+	/**
+	 * Exports the document
+	 * @throws Exception
+	 */
 	public void exportDocuments() throws Exception
 	{
 		Set<String> keySet=  documents.keySet();
@@ -293,6 +281,9 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 	{
 		fileSelector.removeAllItems();
 	}
+	/**
+	 * Clears the main table of entries so we can display a new table
+	 */
 	public void clearTable()
 	{
 		for(int i=tableModel.getRowCount()-1;i>=0;i--)
@@ -300,6 +291,10 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 			tableModel.removeRow(i);
 		}
 	}
+	/**
+	 * Sets the document you want to preview
+	 * @param selectedDocument
+	 */
 	public void setSelectedDocument(String selectedDocument)
 	{
 		clearTable();
@@ -321,7 +316,7 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 	public void mouseReleased(MouseEvent arg0) {}
 	
 	/**
-	 * 
+	 * Removes a directory. We create an extra directory when making new zip, so this cleans it up
 	 * @param fIn
 	 */
 	public void removeDir(File fIn) {
