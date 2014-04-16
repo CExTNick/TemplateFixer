@@ -267,7 +267,7 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 			DOMSource source = new DOMSource(documents.get(keys[i]));
 			
 			File docxFile = new File(keys[i]);
-			File documentXMLFile = new File(docxFile.getParent() + "document.xml");
+			File documentXMLFile = new File(docxFile.getParentFile() + "/document.xml");
 			
 			TransformerFactory transformerFactory = TransformerFactory
 					.newInstance();
@@ -277,8 +277,9 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 			
 			 
 			//delete the file we just created
-			ZipFile newZipFile = ZipUtil.addFileToExistingZip(docxFile,documentXMLFile, "word\\");
+			ZipFile newZipFile = ZipUtil.addFileToExistingZip(docxFile,documentXMLFile, "word/");
 			newZipFile.close();
+			documentXMLFile.delete();
 		}
 		
 	}
