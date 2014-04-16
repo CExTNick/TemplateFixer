@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -58,147 +59,59 @@ public class ZipUtil {
 		    return is;
 		}
 	
-	public static String extractFolder(String zipFile) throws ZipException, IOException 
-	{
-	    System.out.println(zipFile);
-	    int BUFFER = 2048;
-	    File file = new File(zipFile);
-
-	    ZipFile zip = new ZipFile(file);
-	    String newPath = zipFile.substring(0, zipFile.length() - 5);
-
-	    new File(newPath).mkdir();
-	    Enumeration zipFileEntries = zip.entries();
-
-	    // Process each entry
-	    while (zipFileEntries.hasMoreElements())
-	    {
-	        // grab a zip file entry
-	        ZipEntry entry = (ZipEntry) zipFileEntries.nextElement();
-	        String currentEntry = entry.getName();
-	        File destFile = new File(newPath, currentEntry);
-	        //destFile = new File(newPath, destFile.getName());
-	        File destinationParent = destFile.getParentFile();
-
-	        // create the parent directory structure if needed
-	        destinationParent.mkdirs();
-
-	        if (!entry.isDirectory())
-	        {
-	            BufferedInputStream is = new BufferedInputStream(zip
-	            .getInputStream(entry));
-	            int currentByte;
-	            // establish buffer for writing file
-	            byte data[] = new byte[BUFFER];
-
-	            // write the current file to disk
-	            FileOutputStream fos = new FileOutputStream(destFile);
-	            BufferedOutputStream dest = new BufferedOutputStream(fos,
-	            BUFFER);
-
-	            // read and write until last byte is encountered
-	            while ((currentByte = is.read(data, 0, BUFFER)) != -1) {
-	                dest.write(data, 0, currentByte);
-	            }
-	            dest.flush();
-	            dest.close();
-	            is.close();
-	        }
-	        else{
-	            destFile.mkdirs();
-	        }
-	        if (currentEntry.endsWith(".zip"))
-	        {
-	            // found a zip file, try to open
-	            extractFolder(destFile.getAbsolutePath());
-	        }
-	    }
-	    return newPath;
-	}
 	
-	/**
-     * This method zips the directory
-     * source: http://www.journaldev.com/957/java-zip-example-to-zip-single-file-and-a-directory-recursively
-     * @param dir
-     * @param zipDirName
-     */
-    public static void zipDirectory(File dir, String zipDirName) {
-    	filesListInDir = new ArrayList<String>();
-        try {
-            populateFilesList(dir);
-            //now zip files one by one
-            //create ZipOutputStream to write to the zip file
-            FileOutputStream fos = new FileOutputStream(zipDirName);
-            ZipOutputStream zos = new ZipOutputStream(fos);
-            for(String filePath : filesListInDir){
-                System.out.println("Zipping "+filePath);
-                //for ZipEntry we need to keep only relative file path, so we used substring on absolute path
-                ZipEntry ze = new ZipEntry(filePath.substring(dir.getAbsolutePath().length()+1, filePath.length()));
-                zos.putNextEntry(ze);
-                //read the file and write to ZipOutputStream
-                FileInputStream fis = new FileInputStream(filePath);
-                byte[] buffer = new byte[1024];
-                int len;
-                while ((len = fis.read(buffer)) > 0) {
-                    zos.write(buffer, 0, len);
+    public static ZipFile addFileToExistingZip(File zipFile, File versionFile, String relativePath) throws IOException{
+        // get a temp file
+        File tempFile = File.createTempFile(zipFile.getName(), null);
+        // delete it, otherwise you cannot rename your existing zip to it.
+        tempFile.delete();
+System.out.println("path: "+ zipFile.getAbsolutePath());
+        boolean renameOk=zipFile.renameTo(tempFile);
+        if (!renameOk)
+        {
+            throw new RuntimeException("could not rename the file "+zipFile.getAbsolutePath()+" to "+tempFile.getAbsolutePath());
+        }
+        byte[] buf = new byte[4096 * 1024];
+
+        ZipInputStream zin = new ZipInputStream(new FileInputStream(tempFile));
+        ZipOutputStream out = new ZipOutputStream(new FileOutputStream(zipFile));
+
+        ZipEntry entry = zin.getNextEntry();
+        while (entry != null) {
+            String name = entry.getName();
+            boolean toBeDeleted = false;
+                if ((relativePath+versionFile.getName()).indexOf(name) != -1) {
+                    toBeDeleted = true;
                 }
-                zos.closeEntry();
-                fis.close();
+            if(!toBeDeleted){
+                // Add ZIP entry to output stream.
+                out.putNextEntry(new ZipEntry(name));
+                // Transfer bytes from the ZIP file to the output file
+                int len;
+                while ((len = zin.read(buf)) > 0) {
+                    out.write(buf, 0, len);
+                }
             }
-            zos.close();
-            fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+            entry = zin.getNextEntry();
         }
-    }
-     
-    /**
-     * This method populates all the files in a directory to a List
-     * Source: source: http://www.journaldev.com/957/java-zip-example-to-zip-single-file-and-a-directory-recursively
-     * @param dir
-     * @throws IOException
-     */
-    private static void populateFilesList(File dir) throws IOException {
-        File[] files = dir.listFiles();
-        for(File file : files){
-            if(file.isFile()) filesListInDir.add(file.getAbsolutePath());
-            else populateFilesList(file);
+        // Close the streams
+        zin.close();
+        // Compress the files
+        InputStream in = new FileInputStream(versionFile);
+        String fName = versionFile.getName();
+        // Add ZIP entry to output stream.
+        out.putNextEntry(new ZipEntry(relativePath+fName));
+        // Transfer bytes from the file to the ZIP file
+        int len;
+        while ((len = in.read(buf)) > 0) {
+            out.write(buf, 0, len);
         }
-    }
- 
-    /**
-     * This method compresses the single file to zip format
-     * Source: source: http://www.journaldev.com/957/java-zip-example-to-zip-single-file-and-a-directory-recursively
-     * @param file
-     * @param zipFileName
-     */
-    private static void zipSingleFile(File file, String zipFileName) {
-        try {
-            //create ZipOutputStream to write to the zip file
-            FileOutputStream fos = new FileOutputStream(zipFileName);
-            ZipOutputStream zos = new ZipOutputStream(fos);
-            //add a new Zip Entry to the ZipOutputStream
-            ZipEntry ze = new ZipEntry(file.getName());
-            zos.putNextEntry(ze);
-            //read the file and write to ZipOutputStream
-            FileInputStream fis = new FileInputStream(file);
-            byte[] buffer = new byte[1024];
-            int len;
-            while ((len = fis.read(buffer)) > 0) {
-                zos.write(buffer, 0, len);
-            }
-             
-            //Close the zip entry to write to zip file
-            zos.closeEntry();
-            //Close resources
-            zos.close();
-            fis.close();
-            fos.close();
-            System.out.println(file.getCanonicalPath()+" is zipped to "+zipFileName);
-             
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
- 
+        // Complete the entry
+        out.closeEntry();
+        in.close();
+        // Complete the ZIP file
+        out.close();
+        tempFile.delete();
+        return new ZipFile(zipFile);
     }
 }

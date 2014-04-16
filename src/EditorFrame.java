@@ -124,6 +124,8 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 	{
 		Element document = null;
 		InputStream is = null;
+		ZipFile zipFile = null;
+		
 		if(filePath.endsWith(".xml"))
 		{
 			System.out.println("parsing xml");
@@ -132,13 +134,18 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 		else if(filePath.endsWith(".docx") || filePath.endsWith(".zip"))
 		{
 			System.out.println("parsing docx or zip");
-			ZipFile zipFile = new ZipFile(filePath);
+			zipFile = new ZipFile(filePath);
 			is = ZipUtil.unzip(zipFile);
 		}
 		if(is != null)
 		{
 			System.out.println("reading file");
 			document = importTemplateFile(is);
+			
+		}
+		if(zipFile != null)
+		{
+			zipFile.close();
 		}
 		return document;
 	}
@@ -156,11 +163,12 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 		DocumentBuilder builder = DocumentBuilderFactory.newInstance()
 				.newDocumentBuilder();
 		Element records = builder.parse(input).getDocumentElement();
+				
 		TemplateFixer templateFixer = new TemplateFixer();
 		templateFixer.fix(records);
-
-		reader.close();
+		
 		in.close();
+		reader.close();
 		
 		return records;
 	}
@@ -255,25 +263,22 @@ public class EditorFrame extends JFrame implements MouseListener, ActionListener
 		
 		for(int i=0;i<keys.length;i++)
 		{
-			String newPath = ZipUtil.extractFolder(keys[i]);
-			
 			// write the content into xml file
 			DOMSource source = new DOMSource(documents.get(keys[i]));
 			
-			
-			File documentXMLFile = new File(newPath + "\\word\\document.xml");
+			File docxFile = new File(keys[i]);
+			File documentXMLFile = new File(docxFile.getParent() + "document.xml");
 			
 			TransformerFactory transformerFactory = TransformerFactory
 					.newInstance();
 			Transformer transformer = transformerFactory.newTransformer();
-			StreamResult result = new StreamResult(documentXMLFile);
+			StreamResult result = new StreamResult(documentXMLFile );
 			transformer.transform(source, result);
-
-			File newFile = new File(newPath);
-			System.out.println("PAth" + newPath);
-			ZipUtil.zipDirectory(newFile, newPath+ " Fixed.docx");
+			
+			 
 			//delete the file we just created
-			removeDir(newFile);
+			ZipFile newZipFile = ZipUtil.addFileToExistingZip(docxFile,documentXMLFile, "word\\");
+			newZipFile.close();
 		}
 		
 	}
